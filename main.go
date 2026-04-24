@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"slices"
+	"strings"
 	"sync/atomic"
 )
 
@@ -45,7 +47,7 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 	}
 
 	type response struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	const maxChripLen = 140
@@ -64,10 +66,26 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 	}
 
 	res := response{
-		Valid: true,
+		CleanedBody: ProfanityScrubber(params.Body),
 	}
 
 	respondWithJSON(w, http.StatusOK, res)
+}
+
+func ProfanityScrubber(chirp string) string {
+	const redact = "****"
+	badWords := []string{
+		"kerfuffle", "sharbert", "fornax",
+	}
+
+	for _, word := range strings.Split(chirp, " ") {
+		wordLowered := strings.ToLower(word)
+		if slices.Contains(badWords, wordLowered) {
+			chirp = strings.ReplaceAll(chirp, word, redact)
+		}
+	}
+
+	return chirp
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
