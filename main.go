@@ -1,22 +1,44 @@
 package main
 
 import (
+	"chirpy/internal/database"
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	db             *database.Queries
 }
 
 func main() {
 	const port = "8080"
 	const filepathRoot = "."
-	apiConfig := apiConfig{}
+
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL must be set")
+	}
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Error opening database: %s", err)
+	}
+	dbQueries := database.New(db)
+
+	apiConfig := apiConfig{
+		fileserverHits: atomic.Int32{},
+		db:             dbQueries,
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/app/", apiConfig.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
@@ -78,9 +100,8 @@ func ProfanityScrubber(chirp string) string {
 		"kerfuffle", "sharbert", "fornax",
 	}
 
-	for _, word := range strings.Split(chirp, " ") {
-		wordLowered := strings.ToLower(word)
-		if slices.Contains(badWords, wordLowered) {
+	for word := range strings.SplitSeq(chirp, " ") {
+		if slices.Contains(badWords, strings.ToLower(word)) {
 			chirp = strings.ReplaceAll(chirp, word, redact)
 		}
 	}
