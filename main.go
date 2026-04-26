@@ -18,6 +18,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
 }
 
 func main() {
@@ -29,24 +30,31 @@ func main() {
 	if dbURL == "" {
 		log.Fatal("DB_URL must be set")
 	}
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM must be set")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %s", err)
 	}
 	dbQueries := database.New(db)
 
-	apiConfig := apiConfig{
+	cfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
+		platform:       platform,
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/app/", apiConfig.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
+	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
+	mux.HandleFunc("POST /api/users", cfg.handlerCreateUser)
 
-	mux.HandleFunc("GET /admin/metrics", apiConfig.handlerMetrics)
-	mux.HandleFunc("POST /admin/reset", apiConfig.handlerResetMetrics)
+	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/reset", cfg.handlerResetMetrics)
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -78,12 +86,12 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
+		RespondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
 		return
 	}
 
 	if len(params.Body) > maxChripLen {
-		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
+		RespondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
 	}
 
@@ -91,7 +99,7 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 		CleanedBody: ProfanityScrubber(params.Body),
 	}
 
-	respondWithJSON(w, http.StatusOK, res)
+	RespondWithJSON(w, http.StatusOK, res)
 }
 
 func ProfanityScrubber(chirp string) string {
@@ -109,7 +117,7 @@ func ProfanityScrubber(chirp string) string {
 	return chirp
 }
 
-func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
+func RespondWithError(w http.ResponseWriter, code int, msg string, err error) {
 	if err != nil {
 		log.Println(err)
 	}
@@ -125,10 +133,10 @@ func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
 		Error: msg,
 	}
 
-	respondWithJSON(w, code, res)
+	RespondWithJSON(w, code, res)
 }
 
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshaling JSON: %s", err)

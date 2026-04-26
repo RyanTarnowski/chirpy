@@ -18,6 +18,17 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, req *http.Request) {
 }
 
 func (cfg *apiConfig) handlerResetMetrics(w http.ResponseWriter, req *http.Request) {
+	if cfg.platform != "dev" {
+		RespondWithError(w, http.StatusForbidden, "This action is forbidden on non-dev environments.", nil)
+		return
+	}
+
+	err := cfg.db.ClearUsers(req.Context())
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Error clearing users.", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	cfg.fileserverHits.Store(0)
