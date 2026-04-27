@@ -28,12 +28,16 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		RespondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
 		return
 	}
+
 	if params.Email == "" {
 		RespondWithError(w, http.StatusNotAcceptable, "Email is required to create a user.", err)
+		return
 	}
+
 	dbuser, err := cfg.db.CreateUser(req.Context(), params.Email)
 	if err != nil {
-		RespondWithError(w, http.StatusBadRequest, "Failed to create user.", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to create user.", err)
+		return
 	}
 
 	user := User{
