@@ -94,6 +94,48 @@ func profanityScrubber(chirp string) string {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, req *http.Request) {
-	//TODO: Get all chirps from the db and return them in asc order by create date
-	//RespondWithJSON(w, http.StatusCreated, chirp)
+	res, err := cfg.db.GetChirps(req.Context())
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Failed to get chirps", err)
+		return
+	}
+
+	chirps := []Chirp{}
+	for _, c := range res {
+		chirps = append(chirps, Chirp{
+			ID:        c.ID,
+			CreatedAt: c.CreatedAt,
+			UpdatedAt: c.UpdatedAt,
+			Body:      c.Body,
+			UserId:    c.UserID,
+		})
+	}
+
+	RespondWithJSON(w, http.StatusOK, chirps)
+}
+
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, req *http.Request) {
+	reqID := req.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(reqID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Failed to parse chirp ID", err)
+		return
+	}
+
+	res, err := cfg.db.GetChirpByID(req.Context(), chirpID)
+	if err != nil {
+		RespondWithError(w, http.StatusNotFound, "Failed to get chirp", err)
+		return
+	}
+
+	chirp := Chirp{
+		ID:        res.ID,
+		CreatedAt: res.CreatedAt,
+		UpdatedAt: res.UpdatedAt,
+		Body:      res.Body,
+		UserId:    res.UserID,
+	}
+
+	RespondWithJSON(w, http.StatusOK, chirp)
 }
