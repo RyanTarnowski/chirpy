@@ -36,7 +36,7 @@ func TestProfanityScrubber(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		actual := ProfanityScrubber(c.input)
+		actual := profanityScrubber(c.input)
 
 		if actual != c.expected {
 			t.Errorf("Actual and expected do not match: \n'%v' \nvs\n'%v'", actual, c.expected)
