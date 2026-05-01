@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -93,5 +94,38 @@ func TestJWTs(t *testing.T) {
 		if c.userId != token_userId && c.expected == true {
 			t.Errorf("Actual and expected userIDs do not match: \n%v \vvs\n %v", c.userId, token_userId)
 		}
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	token := "Ea/+QMPauUxzmhi+ZwusDlFTAl9/17dAMgWw723hibWt5YknmpvZh7PL5wHPvCAbEYp8bADRZ2B9fHt4QG+hCQ=="
+	req, _ := http.NewRequest("Get", "", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	cases := []struct {
+		token    string
+		expected bool
+	}{
+		{
+			token:    "Ea/+QMPauUxzmhi+ZwusDlFTAl9/17dAMgWw723hibWt5YknmpvZh7PL5wHPvCAbEYp8bADRZ2B9fHt4QG+hCQ==",
+			expected: true,
+		},
+		{
+			token:    "IncorrectToken",
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		token, err := GetBearerToken(req.Header)
+		if err != nil {
+			t.Errorf("Failed to get bearer token: %v", err)
+			continue
+		}
+
+		if c.token != token && c.expected == true {
+			t.Errorf("Actual and expected tokens do not match: \n%v \vvs\n %v", c.token, token)
+		}
+
 	}
 }

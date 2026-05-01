@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chirpy/internal/auth"
 	"chirpy/internal/database"
 	"encoding/json"
 	"errors"
@@ -32,6 +33,18 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	err := decoder.Decode(&params)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Error getting bearer token.", err)
+		return
+	}
+
+	params.UserID, err = auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Error validating token.", err)
 		return
 	}
 
