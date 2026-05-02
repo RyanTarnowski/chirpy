@@ -8,3 +8,10 @@ CREATE TABLE users (
 
 -- +goose Down
 DROP TABLE users;
+
+--Start postgres: sudo systemctl start postgresql
+--goose postgres postgres://postgres:postgres@localhost:5432/chirpy up
+--goose postgres postgres://postgres:postgres@localhost:5432/chirpy down
+--Log into postgres: sudo -u postgres psql
+--Connect to chirpy: \c chirpy
+--List data tables: \dt
