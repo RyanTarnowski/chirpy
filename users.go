@@ -70,6 +70,57 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 	RespondWithJSON(w, http.StatusCreated, user)
 }
 
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Error getting bearer token.", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Error validating token.", err)
+		return
+	}
+
+	hashed_pw, err := auth.HashPassword(params.Password)
+	if err != nil {
+		RespondWithError(w, http.StatusNotAcceptable, "", err)
+		return
+	}
+
+	dbuser, err := cfg.db.UpdateUser(req.Context(), database.UpdateUserParams{
+		ID:             userID,
+		Email:          params.Email,
+		HashedPassword: hashed_pw,
+	})
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Failed to update user.", err)
+		return
+	}
+	user := User{
+		ID:        dbuser.ID,
+		CreatedAt: dbuser.CreatedAt,
+		UpdatedAt: dbuser.UpdatedAt,
+		Email:     dbuser.Email,
+	}
+
+	RespondWithJSON(w, http.StatusOK, user)
+}
+
 func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`

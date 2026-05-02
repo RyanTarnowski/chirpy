@@ -38,7 +38,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 
 	token, err := auth.GetBearerToken(req.Header)
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Error getting bearer token.", err)
+		RespondWithError(w, http.StatusBadRequest, "Error getting bearer token.", err)
 		return
 	}
 
