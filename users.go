@@ -18,6 +18,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
 	Token     string    `json:"token"`
+	Red       bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
@@ -65,6 +66,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		CreatedAt: dbuser.CreatedAt,
 		UpdatedAt: dbuser.UpdatedAt,
 		Email:     dbuser.Email,
+		Red:       dbuser.IsChirpyRed,
 	}
 
 	RespondWithJSON(w, http.StatusCreated, user)
@@ -116,6 +118,7 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request
 		CreatedAt: dbuser.CreatedAt,
 		UpdatedAt: dbuser.UpdatedAt,
 		Email:     dbuser.Email,
+		Red:       dbuser.IsChirpyRed,
 	}
 
 	RespondWithJSON(w, http.StatusOK, user)
@@ -180,6 +183,7 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, req *http.Request)
 		UpdatedAt: dbuser.UpdatedAt,
 		Email:     dbuser.Email,
 		Token:     token,
+		Red:       dbuser.IsChirpyRed,
 	}
 
 	RespondWithJSON(w, http.StatusOK, response{
@@ -235,6 +239,47 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Error revoking refresh token.", err)
 		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusNoContent)
+	w.Write([]byte(http.StatusText(http.StatusNoContent)))
+}
+
+func (cfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNoContent)
+		w.Write([]byte(http.StatusText(http.StatusNoContent)))
+		return
+	}
+
+	userID, err := uuid.Parse(params.Data.UserID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Failed to parse user ID.", err)
+		return
+	}
+
+	_, err = cfg.db.UpdateUserToRed(req.Context(), userID)
+	if err != nil {
+		RespondWithError(w, http.StatusNotFound, "User not found.", err)
+		return
+
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
