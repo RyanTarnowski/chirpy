@@ -152,3 +152,46 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, req *http.Request) 
 
 	RespondWithJSON(w, http.StatusOK, chirp)
 }
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, req *http.Request) {
+	reqID := req.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(reqID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Failed to parse chirp ID.", err)
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(req.Context(), chirpID)
+	if err != nil {
+		RespondWithError(w, http.StatusNotFound, "Failed to get chirp.", err)
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Error getting bearer token.", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Error validating token.", err)
+		return
+	}
+
+	if chirp.UserID != userID {
+		RespondWithError(w, http.StatusForbidden, "Only the author of a chirp can delete it.", err)
+		return
+	}
+
+	err = cfg.db.DeleteChirpByID(req.Context(), chirpID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Failed to delete chirp.", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusNoContent)
+	w.Write([]byte(http.StatusText(http.StatusNoContent)))
+}
