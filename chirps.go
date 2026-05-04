@@ -5,13 +5,13 @@ import (
 	"chirpy/internal/database"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"slices"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	"net/http"
+	"slices"
+	"sort"
+	"strings"
+	"time"
 )
 
 type Chirp struct {
@@ -106,15 +106,43 @@ func profanityScrubber(chirp string) string {
 	return chirp
 }
 
+func authorIDFromRequest(r *http.Request) (uuid.UUID, error) {
+	authorIDString := r.URL.Query().Get("author_id")
+	if authorIDString == "" {
+		return uuid.Nil, nil
+	}
+	authorID, err := uuid.Parse(authorIDString)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return authorID, nil
+}
+
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, req *http.Request) {
-	res, err := cfg.db.GetChirps(req.Context())
+	authorID, err := authorIDFromRequest(req)
+	sortDirection := req.URL.Query().Get("sort")
+	dbChirps := []database.Chirp{}
+
+	if authorID != uuid.Nil {
+		dbChirps, err = cfg.db.GetChirpsByAuthor(req.Context(), authorID)
+	} else {
+		dbChirps, err = cfg.db.GetChirps(req.Context())
+	}
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Failed to get chirps", err)
 		return
 	}
 
+	sort.Slice(dbChirps, func(i, j int) bool {
+		if sortDirection == "desc" {
+			return dbChirps[i].CreatedAt.After(dbChirps[j].CreatedAt)
+		}
+
+		return dbChirps[i].CreatedAt.Before(dbChirps[j].CreatedAt)
+	})
+
 	chirps := []Chirp{}
-	for _, c := range res {
+	for _, c := range dbChirps {
 		chirps = append(chirps, Chirp{
 			ID:        c.ID,
 			CreatedAt: c.CreatedAt,

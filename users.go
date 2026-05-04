@@ -254,9 +254,20 @@ func (cfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, req *http.Reques
 		} `json:"data"`
 	}
 
+	apikey, err := auth.GetAPIKey(req.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Cound not find API key.", err)
+		return
+	}
+
+	if apikey != cfg.polkaKey {
+		RespondWithError(w, http.StatusUnauthorized, "Invalid API Key.", err)
+		return
+	}
+
 	decoder := json.NewDecoder(req.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Error decoding paramters.", err)
 		return
